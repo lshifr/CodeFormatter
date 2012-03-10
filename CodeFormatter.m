@@ -603,7 +603,7 @@ FullCodeFormatCompact[boxes_] :=
       $alignClosingParen = False,
       $alignClosingScopingBracket = False,
       $alignClosingIfBracket = False},
-        fullFormat[boxes]
+        FullCodeFormat[boxes]
     ];    
      
 
