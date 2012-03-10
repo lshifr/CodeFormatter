@@ -7,8 +7,25 @@
 BeginPackage["CodeFormatter`"]
 (* Exported symbols added here with SymbolName::usage *) 
 
+FullCodeFormat;
+
+FullCodeFormatCompact;
+
 Begin["`Private`"]
 (* Implementation of the package *)
+
+
+$supportedBoxes = {StyleBox, TagBox, FractionBox (*,DynamicModuleBox*)};
+$combineTopLevelStatements = True;
+$maxLineLength = 70;
+$alignClosingBracket = True;
+$alignClosingList = True;
+$alignClosingParen = True;
+$alwaysBreakCompoundExpressions = False;
+$alignClosingScopingBracket = True;
+$alignClosingIfBracket = True; 
+
+
 
 
 ClearAll[preprocess];
@@ -24,25 +41,22 @@ preprocess[boxes_] :=
 ClearAll[$blocks, blockQ];
 $blocks = {
    ModuleBlock, BlockBlock, WithBlock, SetBlock, SetDelayedBlock, 
-   CompoundExpressionBlock, GeneralHeadBlock,
-   HeadBlock, ElemBlock, GeneralBlock, ParenBlock, ListBlock, 
-   PatternBlock, PatternTestBlock, FunctionBlock,
-   AlternativesBlock, StatementBlock, NewlineBlock, MultilineBlock, 
-   FinalTabBlock, GeneralSplitHeadBlock,
-   (*FractionBlock,*) EmptySymbol, SemicolonSeparatedGeneralBlock, 
-   SuppressedCompoundExpressionBlock,
-   (* StyleBlock,*) GeneralBoxBlock, TagSetDelayedBlock, TagSetBlock, 
-   ApplyBlock, ApplyLevel1Block,
-   RuleBlock, RuleDelayedBlock, MapBlock, FunApplyBlock, IfBlock, 
-   IfBlock, IfCommentBlock(*, TopLevelStatementBlock *)
+   CompoundExpressionBlock, GeneralHeadBlock, HeadBlock, ElemBlock, 
+   GeneralBlock, ParenBlock, ListBlock, PatternBlock, PatternTestBlock, 
+   FunctionBlock, AlternativesBlock, StatementBlock, NewlineBlock, 
+   MultilineBlock, FinalTabBlock, GeneralSplitHeadBlock, EmptySymbol, 
+   SemicolonSeparatedGeneralBlock, SuppressedCompoundExpressionBlock, 
+   GeneralBoxBlock, TagSetDelayedBlock, TagSetBlock, ApplyBlock, 
+   ApplyLevel1Block, RuleBlock, RuleDelayedBlock, MapBlock, FunApplyBlock, 
+   IfBlock, IfBlock, IfCommentBlock
    };
    
 blockQ[block_Symbol] :=
     MemberQ[$blocks, block];
 
 
-ClearAll[$supportedBoxes, boxQ, boxNArgs]
-$supportedBoxes = {StyleBox, TagBox, FractionBox (*,DynamicModuleBox*)};
+ClearAll[boxQ, boxNArgs]
+
 boxQ[box_Symbol] :=
     MemberQ[$supportedBoxes, box];
 
@@ -50,9 +64,7 @@ boxQ[box_Symbol] :=
 boxNArgs[_StyleBox] = 1;
 boxNArgs[_FractionBox] = 2;
 boxNArgs[_TagBox] = 1;
-(*boxNArgs[RowBox[{elems___}]]:=Length[{elems}]; *)
 
-(*boxNArgs[_DynamicModuleBox]=2;*)
 
 boxNArgs[_] :=
     Throw[$Failed, boxNArgs];
@@ -77,18 +89,22 @@ preformat[expr : (box_?boxQ[args___])] :=
 
 
 preformat[
-   RowBox[{head : ("Module" | "Block" | "With"), "[", 
-     RowBox[{decl_RowBox, ",", body_RowBox}], 
-     "]"}]] :=
-    (head /. {"Module" -> ModuleBlock, 
-        "Block" -> BlockBlock, "With" -> WithBlock})[preformat@decl, 
-     preformat@body];
+   RowBox[{
+      head : ("Module" | "Block" | "With"), 
+      "[", RowBox[{decl_RowBox, ",", body_RowBox}], "]"
+   }]
+] :=
+    (head /. {"Module" -> ModuleBlock, "Block" -> BlockBlock, "With" -> WithBlock})[
+		preformat@decl, 
+        preformat@body
+    ];
 
-preformat[
-   RowBox[{lhs_, assignment : (":=" | "="), 
-     rhs_}]] :=
-    (assignment /. {":=" :> SetDelayedBlock, 
-        "=" :> SetBlock})[preformat[lhs], preformat[rhs]];
+preformat[RowBox[{lhs_, assignment : (":=" | "="), rhs_}]] :=
+    (assignment /. {":=" :> SetDelayedBlock, "=" :> SetBlock})[
+		preformat[lhs], 
+		preformat[rhs]
+	];
+
 preformat[
    RowBox[{s_String?strsymQ, "/:", lhs_, assignment : (":=" | "="), 
      rhs_}]] :=
@@ -117,13 +133,14 @@ preformat[RowBox[{lhs_, "\[RuleDelayed]", rhs_}]] :=
 
 preformat[RowBox[{p_, "?", test_}]] :=
     PatternTestBlock[preformat[p], preformat[test]];
+
 preformat[RowBox[{body_, "&"}]] :=
     FunctionBlock[preformat[body]];
+
 preformat[RowBox[alts : {PatternSequence[_, "|"] .., _}]] :=
     AlternativesBlock @@ Map[preformat, alts[[1 ;; -1 ;; 2]]];
-preformat[
-   RowBox[{"If", "[", RowBox[{cond_, ",", iftrue_, ",", iffalse_}], 
-     "]"}]] :=
+
+preformat[RowBox[{"If", "[", RowBox[{cond_, ",", iftrue_, ",", iffalse_}], "]"}]] :=
     IfBlock[preformat@cond, preformat@iftrue, preformat@iffalse];
 
 
@@ -140,53 +157,52 @@ preformat[RowBox[elems : {PatternSequence[_, ";"] .., _}]] :=
 
 preformat[RowBox[elems_List]] /; ! FreeQ[elems, "\n" | "\t", 1] :=
     preformat[RowBox[DeleteCases[elems, "\n" | "\t"]]];
+
 preformat[RowBox[{"{", elems___, "}"}]] :=
     ListBlock @@ Map[preformat, {elems}];
+
 preformat[RowBox[{"(", elems__, ")"}]] :=
     ParenBlock @@ Map[preformat, {elems}];
+
 preformat[RowBox[{p_String?strsymQ, ":", elem_}]] :=
     PatternBlock[p, preformat@elem];
+
 preformat[RowBox[{p_String?strsymQ, ":", elem_, ":", def_}]] :=
     PatternBlock[p, preformat@elem, preformat@def];
 
 preformat[RowBox[{head_, "[", elems___, "]"}]] :=
     GeneralHeadBlock[preformat@head, 
      Sequence @@ Map[preformat, {elems}]];
+
 preformat[RowBox[elems : {PatternSequence[_, ","] .., _}]] :=
     SemicolonSeparatedGeneralBlock @@ 
      Map[preformat, DeleteCases[elems, ","]];
+
 preformat[RowBox[elems_List]] :=
     GeneralBlock @@ Map[preformat, elems];
+
 preformat[block_?blockQ[args_]] :=
     block @@ Map[preformat, {args}];
 
-(*
-preformat[FractionBox[n_,d_]]:=
-FractionBlock[preformat@n,preformat@d];
-*)
-
-preformat[a_?AtomQ] :=
-    a;
+preformat[a_?AtomQ] := a;
 
 preformat[expr_] :=
-    Throw[{$Failed, expr}, preformat];
+  Throw[{$Failed, expr}, preformat];
 
 
 
-
-
-ClearAll[$combineTopLevelStatements];
-$combineTopLevelStatements = True;
 
 
 ClearAll[processPreformatted];
-processPreformatted[GeneralBlock[blocks__]] :=
+processPreformatted[GeneralBlock[blocks__]]/;$combineTopLevelStatements :=
     GeneralBlock[Sequence @@ Map[processPreformatted, {blocks}]];
+
 processPreformatted[
-   preformatted : SemicolonSeparatedGeneralBlock[elems___]] :=
+   preformatted : SemicolonSeparatedGeneralBlock[elems___]
+]/;$combineTopLevelStatements  :=
     GeneralBoxBlock[RowBox[{##}] &, Length[{elems}], elems];
-processPreformatted[arg_] :=
-    arg;
+
+processPreformatted[arg_] :=  arg;
 
 
 
@@ -195,18 +211,11 @@ ClearAll[tabify];
 tabify[expr_] /; ! FreeQ[expr, TabBlock[_]] :=
     tabify[expr //. TabBlock[sub_] :> TabBlock[sub, True]];
 
-tabify[(block_?blockQ /; ! MemberQ[{TabBlock, FinalTabBlock}, block])[
-    elems___]] :=
+tabify[(block_?blockQ /; ! MemberQ[{TabBlock, FinalTabBlock}, block])[elems___]] :=
     block @@ Map[tabify, {elems}];
 
 tabify[TabBlock[FinalTabBlock[el_, flag_], tflag_]] :=
     FinalTabBlock[tabify[TabBlock[el, tflag]], flag];
-
-(*
-tabify[TabBlock[(head:ModuleBlock|BlockBlock|WithBlock)[vars_,body_\
-],_]]:=
-FinalTabBlock[head[vars,tabify@TabBlock[body,True]],False];
-*)
 
 tabify[TabBlock[NewlineBlock[el_, flag_], _]] :=
     tabify[NewlineBlock[TabBlock[el, True], flag]];
@@ -220,8 +229,7 @@ tabify[TabBlock[GeneralBoxBlock[box_, n_, args___], flag_]] :=
      Sequence @@ Drop[{args}, n]
      ];
 
-tabify[TabBlock[(block_?blockQ /; ! MemberQ[{TabBlock}, block])[
-     elems___], flag_]] :=
+tabify[TabBlock[(block_?blockQ /; ! MemberQ[{TabBlock}, block])[ elems___], flag_]] :=
     FinalTabBlock[
      block @@ Map[tabify@TabBlock[#, False] &, {elems}],
      flag];
@@ -229,33 +237,27 @@ tabify[TabBlock[(block_?blockQ /; ! MemberQ[{TabBlock}, block])[
 tabify[TabBlock[a_?AtomQ, flag_]] :=
     FinalTabBlock[a, flag];
 
-tabify[expr_] :=
-    expr;
+tabify[expr_] :=  expr;
 
 
 
 ClearAll[isNextNewline];
-isNextNewline[_NewlineBlock] :=
-    True;
+isNextNewline[_NewlineBlock] := True;
+
 isNextNewline[block : (_?blockQ | TabBlock)[fst_, ___]] :=
     isNextNewline[fst];
-isNextNewline[_] :=
-    False;
 
-
+isNextNewline[_] := False;
 
 
 
 ClearAll[postformat];
 postformat[GeneralBlock[elems__]] :=
     RowBox[postformat /@ {elems}];
-(* Note: BlankSequence in body intentional, to allow for closing \
-element *)
-postformat[(head : ModuleBlock | BlockBlock | WithBlock)[
-    vars_, body__]] :=
+(* Note: BlankSequence in body intentional, to allow for closing element *)
+postformat[(head : ModuleBlock | BlockBlock | WithBlock)[vars_, body__]] :=
     RowBox[{
-      head /. {ModuleBlock -> "Module", BlockBlock -> "Block", 
-        WithBlock -> "With"},
+      head /. {ModuleBlock -> "Module", BlockBlock -> "Block", WithBlock -> "With"},
       "[",
       RowBox[{
         postformat[vars], ",", 
@@ -264,9 +266,8 @@ postformat[(head : ModuleBlock | BlockBlock | WithBlock)[
         }],
       "]"}
      ];
-postformat[(head : 
-      SetBlock | SetDelayedBlock | RuleBlock | RuleDelayedBlock)[lhs_,
-     rhs_]] :=
+
+postformat[(head : SetBlock | SetDelayedBlock | RuleBlock | RuleDelayedBlock)[lhs_, rhs_]] :=
     RowBox[{
       postformat@lhs, head /. {
         SetBlock -> "=", SetDelayedBlock -> ":=", 
@@ -274,35 +275,37 @@ postformat[(head :
         },
       postformat@rhs
       }];
-postformat[(head : TagSetBlock | TagSetDelayedBlock)[s_, lhs_, 
-    rhs_]] :=
-    RowBox[{postformat@s, "/:", postformat@lhs, 
+
+postformat[(head : TagSetBlock | TagSetDelayedBlock)[s_, lhs_, rhs_]] :=
+    RowBox[{
+	  postformat@s, "/:", postformat@lhs, 
       head /. {TagSetBlock -> "=", TagSetDelayedBlock -> ":="}, 
       postformat@rhs}];
-postformat[(head : 
-      MapBlock | ApplyLevel1Block | ApplyBlock | FunApplyBlock)[f_, 
-    expr_]] :=
+
+postformat[(head :  MapBlock | ApplyLevel1Block | ApplyBlock | FunApplyBlock)[f_,  expr_]] :=
     RowBox[{
       postformat@f, head /. {
-        ApplyBlock -> "@@", ApplyLevel1Block -> "@@@", MapBlock -> "/@",
-         FunApplyBlock -> "@"
+        ApplyBlock -> "@@", ApplyLevel1Block -> "@@@", 
+		MapBlock -> "/@", FunApplyBlock -> "@"
         },
       postformat@expr
       }];
+
 postformat[AlternativesBlock[elems__]] :=
     RowBox[Riffle[postformat /@ {elems}, "|"]];
+
 postformat[FunctionBlock[body_]] :=
     RowBox[{postformat@body, "&"}];
+
 postformat[PatternTestBlock[p_, body_]] :=
     RowBox[{postformat@p, "?", postformat@body}];
+
 postformat[CompoundExpressionBlock[elems__]] :=
     RowBox[Riffle[postformat /@ {elems}, ";"]];
 
 (* Note: fragile! *)
 
-postformat[
-    IfBlock[if_, cond_, iftrue_, ifcomment_, iffalse_, 
-     closingElement_]] /; ! FreeQ[ifcomment, IfCommentBlock] :=
+postformat[IfBlock[if_, cond_, iftrue_, ifcomment_, iffalse_, closingElement_]] /; ! FreeQ[ifcomment, IfCommentBlock] :=
     RowBox[{postformat@if, "[",
       RowBox[{postformat@cond, ",", postformat@iftrue, ",", 
         postformat@ifcomment, postformat@iffalse, 
@@ -325,14 +328,18 @@ postformat[ListBlock[elems___]] :=
     RowBox[{"{", 
       Sequence @@ (Map[postformat, {elems}] //. 
          EmptySymbol[] :> Sequence[]), "}"}];
+
 postformat[ParenBlock[elems__]] :=
     RowBox[{"(", 
       Sequence @@ (Map[postformat, {elems}] //. 
          EmptySymbol[] :> Sequence[]), ")"}];
+
 postformat[PatternBlock[name_, pt_]] :=
     RowBox[{postformat@name, ":", postformat@pt}];
+
 postformat[PatternBlock[name_, pt_, def_]] :=
     RowBox[{postformat@name, ":", postformat@pt, ":", postformat@def}];
+
 postformat[GeneralHeadBlock[head_, elems___]] :=
     RowBox[{postformat@head, "[", 
       Sequence @@ Riffle[postformat /@ {elems}, ","], "]"}];
@@ -348,21 +355,16 @@ postformat[GeneralSplitHeadBlock[head_, elems___]] :=
           Sequence @@ Riffle[Most[formattedElems], ","],
           Last[formattedElems] //. EmptySymbol[] :> Sequence[], "]"}]
     ];
-(*
-postformat[FractionBlock[n_,d_]]:=
-FractionBox[postformat@n,postformat@d];
-*)
+
 postformat[GeneralBlock[elems___]] :=
     RowBox[Riffle[postformat /@ {elems}, ","]];
+
 postformat[StatementBlock[elem_]] :=
     postformat[elem];
+
 postformat[MultilineBlock[elems__]] :=
     RowBox[Riffle[postformat /@ {elems}, "\n"]];
 
-(*
-postformat[NewlineBlock[elem_,_]]:=
-RowBox[{"\n",postformat@elem}];
-*)
 
 
 postformat[NewlineBlock[elem_?isNextNewline, False]] :=
@@ -375,11 +377,6 @@ postformat[SemicolonSeparatedGeneralBlock[elems__]] :=
 postformat[NewlineBlock[elem_, _]] :=
     RowBox[{"\n", postformat@elem}];
 
-(*
-postformat[block_?blockQ[elems__NewlineBlock,last_]]:=
-postformat[block[MultilineBlock[Sequence@@({elems}[[All,1]]),last]]];
-*)
-
 postformat[GeneralBoxBlock[box_, n_, args___]] :=
     box[
      Sequence @@ Map[postformat, Take[{args}, n]],
@@ -388,29 +385,21 @@ postformat[GeneralBoxBlock[box_, n_, args___]] :=
 
 
 
-(*
-postformat[FinalTabBlock[GeneralSplitHeadBlock[elems___],True]]/;!\
-MatchQ[{elems},{___,Tabbed[]}]:=
-postformat[FinalTabBlock[GeneralSplitHeadBlock[elems,Tabbed[]],True]];\
-
-*)
 
 postformat[FinalTabBlock[expr_, True]] :=
     RowBox[{"\t", postformat@expr}];
+
 postformat[FinalTabBlock[expr_, False]] :=
     postformat@expr;
 
 postformat[EmptySymbol[]] :=
     EmptySymbol[];
 
-postformat[a_?AtomQ] :=
-    a;
+postformat[a_?AtomQ] :=  a;
 
 
 postformat[arg_] :=
     Throw[{$Failed, arg}, postformat];
-
-
 
 
 
@@ -434,9 +423,8 @@ maxLen[expr_] :=
     Throw[{$Failed, expr}, maxLen];
   
   
-  
-  
-  
+
+
 ClearAll[$closingElementRules];
 $closingElementRules = {
    "Bracket" :> $alignClosingBracket ,
@@ -446,39 +434,26 @@ $closingElementRules = {
    "IfBracket" :> $alignClosingIfBracket
    };  
 
-
-
 ClearAll[closingElement];
 closingElement[type_String] :=
-    Unevaluated[If[ TrueQ@type,
-                    NewlineBlock[EmptySymbol[], True],
-                    (* else *)
-                    EmptySymbol[]
-                ]] /. $closingElementRules;
+    Unevaluated[
+		If[TrueQ@type,
+             NewlineBlock[EmptySymbol[], True],
+             (* else *)
+             EmptySymbol[]
+        ]
+    ] /. $closingElementRules; 
      
      
-     
-
-$maxLineLength = 70;
-$alignClosingBracket = True;
-$alignClosingList = True;
-$alignClosingParen = True;
-$alwaysBreakCompoundExpressions = False;
-$alignClosingScopingBracket = True;
-$alignClosingIfBracket = True;  
-
 
 
 ClearAll[needSplitQ];
 needSplitQ[expr_, currentTab_] :=
     maxLen[expr] > $maxLineLength - currentTab;
  
- 
- 
- 
- 
- ClearAll[format];
-(*SetAttributes[format,HoldFirst]; *)
+  
+ClearAll[format];
+
 format[expr_] :=
     format[expr, 0];
 
@@ -499,15 +474,14 @@ format[expr : GeneralBoxBlock[box_, n_, args___], currentTab_] :=
          ]
     ];
 
+
 format[TabBlock[expr_], currentTab_] :=
     TabBlock[format[expr, currentTab + 4]];
 
 format[NewlineBlock[expr_, flag_], currentTab_] :=
     NewlineBlock[format[expr, currentTab], flag];
 
-format[block_?blockQ[left___, 
-    sc : (_ModuleBlock | _BlockBlock | _WithBlock), right___], 
-   currentTab_] :=
+format[block_?blockQ[left___, sc : (_ModuleBlock | _BlockBlock | _WithBlock), right___], currentTab_] :=
     format[block[left, NewlineBlock[sc, True], right], currentTab];
 
 format[(head : ModuleBlock | BlockBlock | WithBlock)[vars_, body_], 
@@ -539,12 +513,9 @@ format[expr : (head : (SetBlock | RuleBlock | RuleDelayedBlock))[lhs_,
      ];
 
 
-format[(ce : (CompoundExpressionBlock | 
-        SuppressedCompoundExpressionBlock))[elems__], currentTab_] :=
+format[(ce : (CompoundExpressionBlock | SuppressedCompoundExpressionBlock))[elems__], currentTab_] :=
     With[ {formatted = Map[format[#, currentTab] &, {elems}]},
-        (ce @@ 
-           Map[NewlineBlock[#, False] &, 
-            formatted]) /;
+        (ce @@ Map[NewlineBlock[#, False] &, formatted]) /;
          $alwaysBreakCompoundExpressions || !FreeQ[formatted, NewlineBlock]
     ];
 
@@ -581,30 +552,23 @@ format[expr : GeneralHeadBlock[head_, elems___], currentTab_] :=
           ] /; splitQ
     ];
 
-format[expr : (ListBlock[elems___]), currentTab_] /; 
-   needSplitQ[expr, currentTab] :=
+format[expr : (ListBlock[elems___]), currentTab_] /; needSplitQ[expr, currentTab] :=
     NewlineBlock[
      ListBlock[
-      Sequence @@ 
-       Map[format[TabBlock@NewlineBlock[#, False], 
-          currentTab] &, {elems}],
+      Sequence @@ Map[format[TabBlock@NewlineBlock[#, False], currentTab] &, {elems}],
       closingElement["List"]
       ],
      True];
 
-format[expr : (ParenBlock[elems___]), currentTab_] /; 
-   needSplitQ[expr, currentTab] :=
+format[expr : (ParenBlock[elems___]), currentTab_] /; needSplitQ[expr, currentTab] :=
     NewlineBlock[
      ParenBlock[
-      Sequence @@ 
-       Map[format[TabBlock@NewlineBlock[#, False], 
-          currentTab] &, {elems}],
+      Sequence @@  Map[format[TabBlock@NewlineBlock[#, False], currentTab] &, {elems}],
       closingElement["Parenthesis"]
       ],
      True];
 
-format[expr : ((head : (ApplyBlock | ApplyLevel1Block | MapBlock | 
-           FunApplyBlock))[f_, e_]), currentTab_] /; 
+format[expr : ((head : (ApplyBlock | ApplyLevel1Block | MapBlock |  FunApplyBlock))[f_, e_]), currentTab_] /; 
    needSplitQ[expr, currentTab] :=
     head[
      format[f, currentTab],
@@ -628,12 +592,12 @@ format[a_?AtomQ, _] := a;
     
     
     
-ClearAll[fullFormat, fullFormatCompact];
-fullFormat[boxes_] :=
+ClearAll[FullCodeFormat, FullCodeFormatCompact];
+FullCodeFormat[boxes_] :=
     postformat@
      tabify@format@processPreformatted@preformat@preprocess@boxes;
 
-fullFormatCompact[boxes_] :=
+FullCodeFormatCompact[boxes_] :=
     Block[ {$alignClosingBracket = False,
       $alignClosingList = False,
       $alignClosingParen = False,
