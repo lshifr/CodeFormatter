@@ -21,7 +21,7 @@ package:
  - Place it into one of the directories where *Mathematica* 
 can find it, for example in a directory returned by evaluating
 `FileNameJoin[$UserBaseDirectory,"Applications"]`
- - Call `Needs["CodeFormatter`"]
+ - Call ``Needs["CodeFormatter`"]``
 
 ###How to use
 
