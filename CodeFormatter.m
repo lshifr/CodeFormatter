@@ -2,14 +2,40 @@
 
 (* Mathematica Package *)
 
-(* Created by the Wolfram Workbench Mar 9, 2012 *)
+(* :Title: CodeFormatter   *) 
+
+(* :Author: Leonid B. Shifrin    *)
+
+(* :Summary:  Pretty-printer for Mathematica code in box form  *)
+
+(* :Context: CodeFormatter`  *)
+
+(* :Package version: 1.0   *)
+
+(* :Copyright:  Copyright 2012, Leonid B.Shifrin.
+	The package is released under MIT Open Source license     	
+*)
+
+(*  :History:  Version 1.0  March 2012    *)
+
+(*  :Keywords: code, format, pretty-print *)
+
+(*  :Mathematica version:  8.0  *)
+
+
 
 BeginPackage["CodeFormatter`"]
 (* Exported symbols added here with SymbolName::usage *) 
 
-FullCodeFormat;
+FullCodeFormat::usage = 
+"FullCodeFormat[code_]  takes some Mathematica expression (in most cases that would
+probably be some code) in the box form, and attempts to format this expression to 
+make it easier to read and more understandable, by inserting tabs and new lines. 
+The formatted boxed expression is then returned";
 
-FullCodeFormatCompact;
+FullCodeFormatCompact::usage = 
+"FullCodeFormatCompact[code_] works like FullCodeFormat[code_], but uses setting which 
+make the resulting formatted expression more compact-looking";
 
 Begin["`Private`"]
 (* Implementation of the package *)
