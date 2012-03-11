@@ -56,6 +56,10 @@ this one here):
 
 The notebook coming with the package contains many more examples
 
+###License
+
+This package is released under MIT Open Source license. The copy of the license can be found [in the project](https://github.com/lshifr/CodeFormatter/blob/master/LICENSE) 
+
 
 
 
