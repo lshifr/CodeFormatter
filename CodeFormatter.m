@@ -37,11 +37,17 @@ FullCodeFormatCompact::usage =
 "FullCodeFormatCompact[code_] works like FullCodeFormat[code_], but uses setting which 
 make the resulting formatted expression more compact-looking";
 
+
+
+SEFormat::usage = 
+"SEFormat[code] formats code in a custom way applicable to use in mathematica.stackexchange.com 
+posts ";
+
 Begin["`Private`"]
 (* Implementation of the package *)
 
 
-$supportedBoxes = {StyleBox, TagBox, FractionBox (*,DynamicModuleBox*)};
+$supportedBoxes = {StyleBox, TagBox, FractionBox,ItemBox (*,DynamicModuleBox*)};
 $combineTopLevelStatements = True;
 $maxLineLength = 70;
 $alignClosingBracket = True;
@@ -50,7 +56,9 @@ $alignClosingParen = True;
 $alwaysBreakCompoundExpressions = False;
 $alignClosingScopingBracket = True;
 $alignClosingIfBracket = True; 
-
+$defaultTabWidth = 4;
+$useSpacesForTabs = True;
+$overallTab = 4;
 
 
 
@@ -59,8 +67,9 @@ preprocess[boxes_] :=
     boxes //.
       {RowBox[{("\t" | "\n") .., expr___}] :> expr} //.
      {
-		s_String /; StringMatchQ[s, Whitespace] :> Sequence[],
-        RowBox[{r_RowBox}] :> r
+		s_String /; StringMatchQ[s, Whitespace|""] :> Sequence[],
+        RowBox[{r_RowBox}] :> r,
+	RowBox[{}]:>Sequence[]
      };
 
 
@@ -74,7 +83,8 @@ $blocks = {
    SemicolonSeparatedGeneralBlock, SuppressedCompoundExpressionBlock, 
    GeneralBoxBlock, TagSetDelayedBlock, TagSetBlock, ApplyBlock, 
    ApplyLevel1Block, RuleBlock, RuleDelayedBlock, MapBlock, FunApplyBlock, 
-   IfBlock, IfBlock, IfCommentBlock
+   IfBlock, IfBlock, IfCommentBlock,DataArrayBlock,ReplaceAllBlock,
+	ReplaceRepeatedBlock, CustomTabBlock
    };
    
 blockQ[block_Symbol] :=
@@ -90,6 +100,7 @@ boxQ[box_Symbol] :=
 boxNArgs[_StyleBox] = 1;
 boxNArgs[_FractionBox] = 2;
 boxNArgs[_TagBox] = 1;
+boxNArgs[_ItemBox]=2;
 
 
 boxNArgs[_] :=
@@ -112,6 +123,10 @@ preformat[expr : (box_?boxQ[args___])] :=
          ]
     ];
 
+
+
+preformat[CustomTabBlock[expr_,width_]]:=
+	TabBlock[preformat[expr],True,width];
 
 
 preformat[
@@ -155,7 +170,11 @@ preformat[RowBox[{lhs_, "\[Rule]", rhs_}]] :=
 preformat[RowBox[{lhs_, "\[RuleDelayed]", rhs_}]] :=
     RuleDelayedBlock[preformat@lhs, preformat@rhs];
 
+preformat[RowBox[{lhs_,"//.","\[VeryThinSpace]",rhs_}]]:=
+    ReplaceRepeatedBlock[preformat[lhs],preformat[rhs]];
 
+preformat[RowBox[{lhs_,"/.","\[VeryThinSpace]",rhs_}]]:=
+    ReplaceAllBlock[preformat[lhs],preformat[rhs]];
 
 preformat[RowBox[{p_, "?", test_}]] :=
     PatternTestBlock[preformat[p], preformat[test]];
@@ -186,6 +205,9 @@ preformat[RowBox[elems_List]] /; ! FreeQ[elems, "\n" | "\t", 1] :=
 
 preformat[RowBox[{"{", elems___, "}"}]] :=
     ListBlock @@ Map[preformat, {elems}];
+
+preformat[RowBox[{"<[",elems___,"]>"}]]:=
+	DataArrayBlock @@ Map[preformat, {elems}];
 
 preformat[RowBox[{"(", elems__, ")"}]] :=
     ParenBlock @@ Map[preformat, {elems}];
@@ -234,34 +256,35 @@ processPreformatted[arg_] :=  arg;
 
 
 ClearAll[tabify];
-tabify[expr_] /; ! FreeQ[expr, TabBlock[_]] :=
-    tabify[expr //. TabBlock[sub_] :> TabBlock[sub, True]];
+tabify[expr_] /; ! FreeQ[expr, TabBlock[_]|TabBlock[_,_]] :=
+    tabify[expr //. TabBlock[sub_] :> TabBlock[sub, True,$tabWidth]];
 
 tabify[(block_?blockQ /; ! MemberQ[{TabBlock, FinalTabBlock}, block])[elems___]] :=
     block @@ Map[tabify, {elems}];
 
-tabify[TabBlock[FinalTabBlock[el_, flag_], tflag_]] :=
-    FinalTabBlock[tabify[TabBlock[el, tflag]], flag];
+tabify[TabBlock[FinalTabBlock[el_, flag_,fwidth_:$tabWidth], tflag_,width_:$tabWidth]] :=
+    FinalTabBlock[tabify[TabBlock[el, tflag,width]], flag,fwidth];
 
-tabify[TabBlock[NewlineBlock[el_, flag_], _]] :=
-    tabify[NewlineBlock[TabBlock[el, True], flag]];
+tabify[TabBlock[NewlineBlock[el_, flag_], _,width_:$tabWidth]] :=
+    tabify[NewlineBlock[TabBlock[el, True,width], flag]];
 
-tabify[TabBlock[t_TabBlock, flag_]] :=
-    tabify[TabBlock[tabify[t], flag]];
+tabify[TabBlock[t_TabBlock, flag_,width_:$tabWidth]] :=
+    tabify[TabBlock[tabify[t], flag,width]];
 
-tabify[TabBlock[GeneralBoxBlock[box_, n_, args___], flag_]] :=
+tabify[TabBlock[GeneralBoxBlock[box_, n_, args___], flag_,width_:$tabWidth]] :=
     GeneralBoxBlock[box, n,
-     Sequence @@ Map[tabify[TabBlock[#, flag]] &, Take[{args}, n]],
+     Sequence @@ Map[tabify[TabBlock[#, flag,width]] &, Take[{args}, n]],
      Sequence @@ Drop[{args}, n]
      ];
 
-tabify[TabBlock[(block_?blockQ /; ! MemberQ[{TabBlock}, block])[ elems___], flag_]] :=
+tabify[TabBlock[(block_?blockQ /; ! MemberQ[{TabBlock}, block])[ elems___], flag_,width_:$tabWidth]] :=
     FinalTabBlock[
-     block @@ Map[tabify@TabBlock[#, False] &, {elems}],
-     flag];
+     block @@ Map[tabify@TabBlock[#, False,width] &, {elems}],
+     flag,
+     width];
 
-tabify[TabBlock[a_?AtomQ, flag_]] :=
-    FinalTabBlock[a, flag];
+tabify[TabBlock[a_?AtomQ, flag_,width_:$tabWidth]] :=
+    FinalTabBlock[a, flag,width];
 
 tabify[expr_] :=  expr;
 
@@ -317,6 +340,12 @@ postformat[(head :  MapBlock | ApplyLevel1Block | ApplyBlock | FunApplyBlock)[f_
       postformat@expr
       }];
 
+postformat[ReplaceAllBlock[lhs_,rhs_]]:=
+	RowBox[{postformat@lhs,"/.","\[VeryThinSpace]",postformat@rhs}]
+
+postformat[ReplaceRepeatedBlock[lhs_,rhs_]]:=
+	RowBox[{postformat@lhs,"//.","\[VeryThinSpace]",postformat@rhs}]
+
 postformat[AlternativesBlock[elems__]] :=
     RowBox[Riffle[postformat /@ {elems}, "|"]];
 
@@ -354,6 +383,11 @@ postformat[ListBlock[elems___]] :=
     RowBox[{"{", 
       Sequence @@ (Map[postformat, {elems}] //. 
          EmptySymbol[] :> Sequence[]), "}"}];
+
+postformat[DataArrayBlock[elems___]] :=
+    RowBox[{"<[", 
+      Sequence @@ (Map[postformat, {elems}] //. 
+         EmptySymbol[] :> Sequence[]), "]>"}];
 
 postformat[ParenBlock[elems__]] :=
     RowBox[{"(", 
@@ -412,10 +446,13 @@ postformat[GeneralBoxBlock[box_, n_, args___]] :=
 
 
 
-postformat[FinalTabBlock[expr_, True]] :=
-    RowBox[{"\t", postformat@expr}];
+postformat[FinalTabBlock[expr_, True,width_]] :=
+    RowBox[{
+		If[$useSpacesForTabs,StringJoin[ConstantArray[" ",{width}]],"\t"], 
+		postformat@expr
+	}];
 
-postformat[FinalTabBlock[expr_, False]] :=
+postformat[FinalTabBlock[expr_, False,_]] :=
     postformat@expr;
 
 postformat[EmptySymbol[]] :=
@@ -436,7 +473,7 @@ maxLen[boxes : (_RowBox | _?boxQ[___])] :=
       Split[
        Append[Cases[boxes, s_String, Infinity], "\n"], # =!= "\n" &],
       {s___, ("\t" | " ") ..., "\n"} :> 
-       Total[{s} /. {"\t" -> 4, ss_ :> StringLength[ss]}],
+       Total[{s} /. {"\t" -> $tabWidth, ss_ :> StringLength[ss]}],
       {1}];
 
 
@@ -502,7 +539,10 @@ format[expr : GeneralBoxBlock[box_, n_, args___], currentTab_] :=
 
 
 format[TabBlock[expr_], currentTab_] :=
-    TabBlock[format[expr, currentTab + 4]];
+    TabBlock[format[expr, currentTab + $tabWidth]];
+
+format[TabBlock[expr_,True,width_],currentTab_]:=
+	TabBlock[format[expr,currentTab+width],True,width];
 
 format[NewlineBlock[expr_, flag_], currentTab_] :=
     NewlineBlock[format[expr, currentTab], flag];
@@ -519,6 +559,13 @@ format[(head : ModuleBlock | BlockBlock | WithBlock)[vars_, body_],
      ];
 
 format[(head : SetDelayedBlock)[lhs_, rhs_], currentTab_] :=
+    head[
+     format[lhs, currentTab],
+     format[NewlineBlock[TabBlock[rhs], False], currentTab]
+     ];
+
+
+format[(head : (ReplaceAllBlock|ReplaceRepeatedBlock))[lhs_, rhs_], currentTab_] :=
     head[
      format[lhs, currentTab],
      format[NewlineBlock[TabBlock[rhs], False], currentTab]
@@ -616,12 +663,16 @@ format[expr : (block_?blockQ[elems___]), currentTab_] :=
 format[a_?AtomQ, _] := a;
  
     
-    
+$tabWidth = 4;
+
+
     
 ClearAll[FullCodeFormat, FullCodeFormatCompact];
 FullCodeFormat[boxes_] :=
+Block[{$tabWidth = $defaultTabWidth},
     postformat@
-     tabify@format@processPreformatted@preformat@preprocess@boxes;
+     tabify@format@processPreformatted@preformat@preprocess@boxes
+];
 
 FullCodeFormatCompact[boxes_] :=
     Block[ {$alignClosingBracket = False,
@@ -633,8 +684,14 @@ FullCodeFormatCompact[boxes_] :=
     ];    
      
 
+SEFormat[boxes_,lineWidth_,tabWidth_, overallTab_]:=
+	Block[{$defaultTabWidth = tabWidth, $maxLineLength = lineWidth,$overallTab= overallTab ,
+		$useSpacesForTabs  = True},
+		FullCodeFormat@CustomTabBlock[boxes,$overallTab]
+	];
 
 End[]
 
 EndPackage[]
+
 
