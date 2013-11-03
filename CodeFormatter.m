@@ -43,6 +43,21 @@ SEFormat::usage =
 "SEFormat[code] formats code in a custom way applicable to use in mathematica.stackexchange.com 
 posts ";
 
+
+CodeFormatterMakeBoxes::usage = "CodeFormatterMakeBoxes[expr] returns a simplified box representation
+for expr. The formatter can use it to handle code which it can't handle using MakeBoxes";
+
+CodeFormatterPrint::usage = "CodeFormatterPrint[f] pretty-prints definitions (OwnValues, DownValues, UpValues 
+and SubValues), associated with the symbol";
+
+CodeFormatterSpelunk::usage = "CodeFormatterSpelunk[f] pretty-prints main definitions (OwnValues, 
+DownValues, UpValues and SubValues) for symbol f, using short names for all symbols in the code
+
+CodeFormatterSpelunk[f,boxFunction] uses a custom function boxFunction to convert definitions to
+boxes. The default value is CodeFormatterMakeBoxes, but one can also try MakeBoxes - if the latter
+works, it may produce somewhat better result
+";
+
 Begin["`Private`"]
 (* Implementation of the package *)
 
@@ -689,6 +704,164 @@ SEFormat[boxes_,lineWidth_,tabWidth_, overallTab_]:=
 		$useSpacesForTabs  = True},
 		FullCodeFormat@CustomTabBlock[boxes,$overallTab]
 	];
+	
+	
+	
+(*============================================================================================*)
+(*=========			 Simplified version of MakeBoxes 		==============*)
+(*============================================================================================*)
+	
+	
+ClearAll[$infixRules, infixForm, infixQ, $multiInfixRules, multiInfixQ, multiInfixFormSeparator];
+
+$infixRules = {
+	Set -> "=", 
+	SetDelayed -> ":=", 
+	Rule -> "->", 
+   	RuleDelayed -> ":>", 
+   	Map -> "/@", 
+   	Apply -> "@@", 
+   	Pattern -> ":", 
+   	PatternTest -> "?", 
+   	Condition -> "/;", 
+   	Optional -> ":", 
+   	ReplaceAll -> "/.", 
+   	ReplaceRepeated -> "//."
+   };
+   
+$multiInfixRules = {
+	Alternatives -> "|", 
+	And -> "&&", 
+	Or -> "||", 
+   	Plus -> "+", 
+   	Times -> "*", 
+   	CompoundExpression -> ";", 
+   	Less -> "<", 
+   	LessEqual -> "<=", 
+   	Greater -> ">", 
+   	GreaterEqual -> ">=", 
+   	Equal -> "==", 
+   	Unequal -> "!=", 
+   	SameQ -> "===", 
+   	UnsameQ -> "=!="
+   };
+   
+infixForm[s_] := s /. $infixRules;
+
+SetAttributes[{infixQ, multiInfixQ}, HoldAll];
+infixQ[s_Symbol] := MemberQ[$infixRules[[All, 1]], HoldPattern[s]];
+
+multiInfixQ[s_Symbol] := 
+  MemberQ[$multiInfixRules[[All, 1]], HoldPattern[s]];
+
+multiInfixFormSeparator[s_Symbol] := s /. $multiInfixRules;
+
+
+
+ClearAll[boxesRiffle];
+SetAttributes[boxesRiffle, HoldRest];
+boxesRiffle[separator_, elems___] := 
+  RowBox@Riffle[Map[makeBoxes, Unevaluated[{elems}]], separator];
+
+
+ClearAll[makeBoxes];
+SetAttributes[makeBoxes, HoldAllComplete];
+makeBoxes[args___] := boxesRiffle[",", args];
+
+makeBoxes[List[args___]] := RowBox[{"{", makeBoxes[args], "}"}];
+
+makeBoxes[ Verbatim[Pattern][sym_Symbol, 
+    bl : (Verbatim[Blank][___] | Verbatim[BlankSequence][___] | 
+       Verbatim[BlankNullSequence][___])]] := 
+  makeBoxes[sym] <> ToString[Unevaluated@bl];
+
+makeBoxes[Function[body_]] := RowBox[{makeBoxes[body], "&"}];
+
+makeBoxes[Slot[i_Integer]] := "#" <> ToString[i];
+
+makeBoxes[SlotSequence[i_Integer]] := "##" <> ToString[i];
+
+makeBoxes[(h_Symbol?infixQ)[lhs_, rhs_]] := 
+  RowBox[{makeBoxes[lhs], infixForm[h], makeBoxes[rhs]}];
+
+makeBoxes[(h_Symbol?multiInfixQ)[args___]] := 
+  RowBox[{"(", boxesRiffle[multiInfixFormSeparator[h], args], ")"}];
+
+makeBoxes[head_[elems___]] := 
+  RowBox[{makeBoxes[head], "[", makeBoxes[elems], "]"}];
+
+makeBoxes[s_ /; AtomQ[Unevaluated[s]]] := MakeBoxes[s];	
+	
+
+ClearAll[CodeFormatterMakeBoxes];
+SetAttributes[CodeFormatterMakeBoxes,HoldAllComplete];
+CodeFormatterMakeBoxes[args__]:=makeBoxes[args]
+	
+	
+	
+(*============================================================================================*)
+(*=========		 Printing definitions and spelunking 			==============*)
+(*============================================================================================*)	
+	
+	
+ClearAll[prn];
+prn = CellPrint[Cell[BoxData[#], "Input"]] &;
+	
+	
+ClearAll[getDefContexts];
+getDefContexts[f_Symbol] := 
+  Union@Flatten@Map[getDefContexts[f, #] &, globalProperties[]];
+  
+getDefContexts[f_Symbol, prop_] :=
+  Union[Cases[prop[f], s_Symbol :> Context[s], Infinity, Heads -> True]];
+
+
+ClearAll[globalProperties];
+globalProperties[] := {DownValues, SubValues, UpValues, OwnValues};
+
+
+ClearAll[$boxFunction];
+$boxFunction = CodeFormatterMakeBoxes;
+
+
+ClearAll[defBoxes];
+defBoxes[f_Symbol] := 
+  Flatten@Map[defBoxes[f, #] &, globalProperties[]];
+
+defBoxes[f_Symbol, prop_] :=
+Cases[prop[f], 
+  Verbatim[RuleDelayed][Verbatim[HoldPattern][lhs_], 
+    rhs_] :> $boxFunction@SetDelayed[lhs, rhs]]
+
+
+ClearAll[printDefs];
+printDefs[f_Symbol] :=
+  Scan[Composition[prn, FullCodeFormat], defBoxes[f]];
+  
+ClearAll[CodeFormatterPrint]  
+CodeFormatterPrint  = printDefs;
+
+
+ClearAll[withSymbolDefContexts];
+SetAttributes[withSymbolDefContexts, HoldAll];
+withSymbolDefContexts[f_Symbol, code_] :=
+  Block[{$ContextPath = 
+     Join[DeleteCases[getDefContexts[f], "System`"], $ContextPath]},
+   code];
+
+
+ClearAll[spelunk];
+spelunk[f_Symbol, boxFunction_: $boxFunction] :=
+  Block[{$boxFunction = boxFunction},
+   withSymbolDefContexts[f, 
+    	CellPrint[Cell[ToString[f], "Subsubsection"]]; printDefs[f]]
+   ];	
+
+
+ClearAll[CodeFormatterSpelunk];
+CodeFormatterSpelunk = spelunk;
+
+
 
 End[]
 
