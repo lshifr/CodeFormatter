@@ -51,6 +51,18 @@ this one here):
         = exprFn[]; rethrow = False; result], _, seq[##1] &], abort 
         = True]; cleanup; If[abort, Abort[]]; If[rethrow, Throw[result 
        /. seq -> Sequence]]; result]]
+       
+Note that in some cases, the   `prn@FullCodeFormat@MakeBoxes` may result in 
+an error because the formatter might not yet support some of the boxes
+created by `MakeBoxes`. In this case, you may try to use the simplified
+function `CodeFormatterMakeBoxes`, in place of `MakeBoxes`:
+
+    prn @ FullCodeFormat @ CodeFormatterMakeBoxes @ your-code
+    
+    
+There are also functions `CodeFormatterPrint[f]` to pretty-print definitions
+for a symbol `f`, and `CodeFormatterSpelunk[f]`, which does the same, but
+strips off all contexts in symbol names.
 
 ###Further resources
 
