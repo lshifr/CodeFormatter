@@ -225,7 +225,7 @@ preformat[RowBox[elems_List]] /; ! FreeQ[elems, "\n" | "\t", 1] :=
 preformat[RowBox[{"{", elems___, "}"}]] :=
     ListBlock @@ Map[preformat, {elems}];
 
-preformat[RowBox[{"<[",elems___,"]>"}]]:=
+preformat[RowBox[{"<|",elems___,"|>"}]]:=
 	DataArrayBlock @@ Map[preformat, {elems}];
 
 preformat[RowBox[{"(", elems__, ")"}]] :=
@@ -404,9 +404,9 @@ postformat[ListBlock[elems___]] :=
          EmptySymbol[] :> Sequence[]), "}"}];
 
 postformat[DataArrayBlock[elems___]] :=
-    RowBox[{"<[", 
+    RowBox[{"<|", 
       Sequence @@ (Map[postformat, {elems}] //. 
-         EmptySymbol[] :> Sequence[]), "]>"}];
+         EmptySymbol[] :> Sequence[]), "|>"}];
 
 postformat[ParenBlock[elems__]] :=
     RowBox[{"(", 
