@@ -88,7 +88,8 @@ preprocess[boxes_] :=
      {
 		s_String /; StringMatchQ[s, Whitespace|""] :> Sequence[],
         RowBox[{r_RowBox}] :> r,
-	RowBox[{}]:>Sequence[]
+	RowBox[{}]:>Sequence[],
+	RowBox[{"Association", "[",inner__,"]"}]:> RowBox[{"<|",inner,"|>"}]
      };
 
 
