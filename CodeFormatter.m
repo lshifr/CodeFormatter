@@ -887,7 +887,7 @@ CodeFormatted /: (h:(Set|SetDelayed|UpSet|UpSetDelayed))[lhs_,CodeFormatted[rhs]
 CodeFormatted /: (h:(TagSet|TagSetDelayed))[tag_,lhs_,CodeFormatted[rhs]]:=
 	CodeFormatted[h[tag,lhs,rhs]];
 	
-CodeFormatted /: CompoundExpression[prev___,CodeFormatted[last]]:=
+CodeFormatted /: CompoundExpression[prev___,CodeFormatted[last_]]:=
 	CodeFormatted[CompoundExpression[prev,last]];
 	
 CodeFormatted[code_]:= codeFormatted[code];
