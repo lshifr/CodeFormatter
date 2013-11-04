@@ -843,8 +843,13 @@ ClearAll[printDefs];
 printDefs[f_Symbol] :=
   Scan[Composition[prn, FullCodeFormat], defBoxes[f]];
   
-ClearAll[CodeFormatterPrint]  
-CodeFormatterPrint  = printDefs;
+  
+ClearAll[CodeFormatterPrint];  
+CodeFormatterPrint[f_Symbol]  := 
+	(
+		CellPrint[Cell[ToString[f], "Subsubsection"]];
+		printDefs[f]
+	);
 
 
 ClearAll[withSymbolDefContexts];
