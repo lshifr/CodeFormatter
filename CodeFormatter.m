@@ -58,6 +58,10 @@ boxes. The default value is CodeFormatterMakeBoxes, but one can also try MakeBox
 works, it may produce somewhat better result
 ";
 
+
+CodeFormatted::usage = "CodeFormatted[code]  prints a cell with the formatted code. This function 
+has an attribute HoldAll";
+
 Begin["`Private`"]
 (* Implementation of the package *)
 
@@ -860,6 +864,30 @@ spelunk[f_Symbol, boxFunction_: $boxFunction] :=
 
 ClearAll[CodeFormatterSpelunk];
 CodeFormatterSpelunk = spelunk;
+
+
+
+ClearAll[codeFormatted];
+SetAttributes[codeFormatted,HoldAll];
+codeFormatted[code_]:=
+	With[{formatted = Catch[FullCodeFormat @ MakeBoxes @ code, _]},
+		prn[formatted] /; !MatchQ[formatted, {$Failed,_}]
+	];
+	
+codeFormatted[code_]:=
+	prn @ FullCodeFormat @ CodeFormatterMakeBoxes @ code;
+
+
+ClearAll[CodeFormatted];
+SetAttributes[CodeFormatted,HoldAll];
+
+CodeFormatted /: (h:(Set|SetDelayed|UpSet|UpSetDelayed))[lhs_,CodeFormatted[rhs]]:=
+	CodeFormatted[h[lhs,rhs]];
+	
+CodeFormatted /: (h:(TagSet|TagSetDelayed))[tag_,lhs_,CodeFormatted[rhs]]:=
+	CodeFormatted[h[tag,lhs,rhs]];
+	
+CodeFormatted[code_]:= codeFormatted[code];
 
 
 
