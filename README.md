@@ -20,7 +20,7 @@ package:
  - Download the package
  - Place it into one of the directories where *Mathematica* 
 can find it, for example in a directory returned by evaluating
-`FileNameJoin[$UserBaseDirectory,"Applications"]`
+`FileNameJoin[{$UserBaseDirectory,"Applications"}]`
  - Call ``Needs["CodeFormatter`"]``
 
 ###How to use
@@ -63,6 +63,11 @@ function `CodeFormatterMakeBoxes`, in place of `MakeBoxes`:
 There are also functions `CodeFormatterPrint[f]` to pretty-print definitions
 for a symbol `f`, and `CodeFormatterSpelunk[f]`, which does the same, but
 strips off all contexts in symbol names.
+
+Also, there is a short-cut function `CodeFormatted`, which can be wrapped 
+around the input code in the "Input" cell, and when executed (SHIFT+ENTER),
+it will print below the cell with formatted code.
+
 
 ###Further resources
 
