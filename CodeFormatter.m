@@ -80,17 +80,20 @@ $useSpacesForTabs = True;
 $overallTab = 4;
 
 
+$inlSymbol = "\[IndentingNewLine]";
 
 ClearAll[preprocess];
 preprocess[boxes_] :=
-    boxes //.
-      {RowBox[{("\t" | "\n") .., expr___}] :> expr} //.
-     {
-		s_String /; StringMatchQ[s, Whitespace|""] :> Sequence[],
-        RowBox[{r_RowBox}] :> r,
-	RowBox[{}]:>Sequence[],
-	RowBox[{"Association", "[",inner__,"]"}]:> RowBox[{"<|",inner,"|>"}]
-     };
+      boxes //.
+                RowBox[{("\t" | "\n") .., expr___}]                            :> expr /.
+                timesBox : RowBox[{_, e_String /; StringMatchQ[e, " " ..], _}] :> ReplacePart[timesBox, {1, 2} -> "$TimesMark$"] /.
+                s_String /; StringMatchQ[s, (Whitespace | $inlSymbol | "") ..] :> Sequence[] /.
+                "$TimesMark$"                                                  -> " " //.
+                {
+                 RowBox[{r_RowBox}]                                            :> r,
+                 RowBox[{}]                                                    :> Sequence[],
+                 RowBox[{"Association", "[", inner__, "]"}]                    :> RowBox[{"<|", inner, "|>"}]
+                };
 
 
 ClearAll[$blocks, blockQ];
