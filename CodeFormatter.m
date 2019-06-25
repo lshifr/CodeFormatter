@@ -66,7 +66,16 @@ Begin["`Private`"]
 (* Implementation of the package *)
 
 
-$supportedBoxes = {StyleBox, TagBox, FractionBox,ItemBox (*,DynamicModuleBox*)};
+$supportedBoxes = {
+    StyleBox, 
+    TagBox, 
+    FractionBox, 
+    ItemBox, 
+    SuperscriptBox,
+    SubscriptBox
+     (*,DynamicModuleBox*)
+};
+
 $combineTopLevelStatements = True;
 $maxLineLength = 70;
 $alignClosingBracket = True;
@@ -121,6 +130,8 @@ boxNArgs[_StyleBox] = 1;
 boxNArgs[_FractionBox] = 2;
 boxNArgs[_TagBox] = 1;
 boxNArgs[_ItemBox]=2;
+boxNArgs[_SuperscriptBox] = 1;
+boxNArgs[_SubscriptBox] = 1;
 
 
 boxNArgs[_] :=
