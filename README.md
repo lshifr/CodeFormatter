@@ -1,6 +1,6 @@
-##CodeFormatter.m
+## CodeFormatter.m
 
-###Formatting Mathematica code 
+### Formatting Mathematica code 
 
 `CodeFormatter.m` is a pretty-printer / code formatter for 
 code written in the *Mathematica* language, which is also 
@@ -12,7 +12,7 @@ those cover a vast majority of cases encountered for normal
 (not typeset) *Mathematica* code. The formatter is extensible 
 and the support for more boxes will be added in the future.
 
-###Installation
+### Installation
 
 The installation procedure is standard, as for any *Mathematica*
 package:
@@ -23,7 +23,7 @@ can find it, for example in a directory returned by evaluating
 `FileNameJoin[{$UserBaseDirectory,"Applications"}]`
  - Call ``Needs["CodeFormatter`"]``
 
-###How to use
+### How to use
 
 There are currently two public functions, `FullCodeFormat` and 
 `FullCodeFormatCompact`. Each of them accepts code in the box
@@ -69,11 +69,11 @@ around the input code in the "Input" cell, and when executed (SHIFT+ENTER),
 it will print below the cell with formatted code.
 
 
-###Further resources
+### Further resources
 
 The notebook coming with the package contains many more examples
 
-###License
+### License
 
 This package is released under MIT Open Source license. The copy of the license can be found [in the project](https://github.com/lshifr/CodeFormatter/blob/master/LICENSE) 
 
